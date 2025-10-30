@@ -106,7 +106,7 @@
         </section>
         <section id="map2024" class="tab-content">
             <h2>2024 General Election Results</h2>
-            <p>This map displays the winning party in each constituency for the July&nbsp;2024 general election, using the same boundaries for consistency.</p>
+            <p>This map displays the winning party in each constituency for the July 2024 general election, using the same boundaries for consistency.</p>
             <div id="map2024Div"></div>
             <div class="legend" id="legend2024"></div>
         </section>
@@ -124,11 +124,31 @@
     <script>
     // Immediately invoked async function to load data and initialize content
     (async function() {
-        // Load GeoJSON and mapping files
-        const geoData = await fetch('data/constituencies_simplified.geojson').then(r => r.json());
-        const winners2019 = await fetch('data/winners2019.json').then(r => r.json());
-        const winners2024 = await fetch('data/winners2024.json').then(r => r.json());
-        const seatCounts = await fetch('data/predicted_seat_counts.json').then(r => r.json());
+        // Determine the base URL for data files.  On GitHub Pages, the site is served from
+        // https://<username>.github.io/<repo>/, so we construct an absolute URL to the
+        // `data` folder from the current location.  If the repository name changes,
+        // update the repoSlug accordingly.
+        const repoSlug = 'election-projections';
+        const origin = window.location.origin;
+        let basePath = window.location.pathname;
+        // Ensure trailing slash
+        if (!basePath.endsWith('/')) {
+            basePath += '/';
+        }
+        // If the path does not include the repo slug (e.g. when opened from file://)
+        // then assume data lives alongside index.html.
+        let dataUrl;
+        if (basePath.includes(`/${repoSlug}/`)) {
+            dataUrl = `${origin}/${repoSlug}/data/`;
+        } else {
+            dataUrl = `${basePath}data/`;
+        }
+
+        // Load GeoJSON and mapping files from absolute URLs
+        const geoData = await fetch(`${dataUrl}constituencies_simplified.geojson`).then(r => r.json());
+        const winners2019 = await fetch(`${dataUrl}winners2019.json`).then(r => r.json());
+        const winners2024 = await fetch(`${dataUrl}winners2024.json`).then(r => r.json());
+        const seatCounts = await fetch(`${dataUrl}predicted_seat_counts.json`).then(r => r.json());
 
         // Colour palette for parties
         const partyColors = {
@@ -201,8 +221,8 @@
         buildLegend('legend2024');
 
         // Load polling data and plot chart
-        const pollCsvText = await fetch('data/uk_polling_2024_2025_national_dates_for_chart.csv').then(r => r.text());
-        Papa.parse(pollCsvText, {
+        const pollCsv = await fetch(`${dataUrl}uk_polling_2024_2025_national_dates_for_chart.csv`).then(r => r.text());
+        Papa.parse(pollCsv, {
             header: true,
             dynamicTyping: true,
             complete: function(results) {
