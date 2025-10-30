@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Election Analysis and Predictions</title>
+    <!-- Leaflet CSS and JS for interactive maps -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha384-o8LjHIL2XEhSKBLL8GMDIS9ZhuttW60Z7ZAE91qdMetb9vQEkPyB8zeYya0aj0Ld"
+        crossorigin=""
+    />
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha384-sA+1rB9x9mDeMtdHMnNrpR5t7Y8Zzl1rW6jqH6RmPOcrckL4UleZm7uPiEgb4x2P"
+        crossorigin=""
+    ></script>
+    <!-- Plotly for charts -->
+    <script src="https://cdn.plot.ly/plotly-2.25.2.min.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            line-height: 1.4;
+        }
+        header {
+            background-color: #183059;
+            color: #fff;
+            padding: 1rem;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            background-color: #f7f7f7;
+        }
+        .tab-button {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            border-bottom: 3px solid transparent;
+        }
+        .tab-button:hover {
+            background-color: #eee;
+        }
+        .tab-button.active {
+            border-bottom-color: #183059;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            padding: 1rem;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        #map2019Div,
+        #map2024Div {
+            height: 600px;
+        }
+        #pollChart,
+        #predictionChart {
+            height: 600px;
+        }
+        .legend {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 1rem;
+        }
+        .legend-color {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            margin-right: 0.25rem;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>UK Election Analysis and Predictions</h1>
+    </header>
+    <nav class="tabs">
+        <button class="tab-button active" data-tab="map2019">2019 Results</button>
+        <button class="tab-button" data-tab="map2024">2024 Results</button>
+        <button class="tab-button" data-tab="polls">Polling Trends</button>
+        <button class="tab-button" data-tab="predictions">Predictions</button>
+    </nav>
+    <main>
+        <section id="map2019" class="tab-content active">
+            <h2>2019 General Election Results</h2>
+            <p>The map below shows the winning party in each UK parliamentary constituency for the 2019 general election. Constituency boundaries reflect the 2024 configuration, enabling comparison across elections.</p>
+            <div id="map2019Div"></div>
+            <div class="legend" id="legend2019"></div>
+        </section>
+        <section id="map2024" class="tab-content">
+            <h2>2024 General Election Results</h2>
+            <p>This map displays the winning party in each constituency for the July&nbsp;2024 general election, using the same boundaries for consistency.</p>
+            <div id="map2024Div"></div>
+            <div class="legend" id="legend2024"></div>
+        </section>
+        <section id="polls" class="tab-content">
+            <h2>Polling Trends (2024–2025)</h2>
+            <p>The chart below shows the evolution of UK-wide voting intention polls since the 2024 general election. Data are drawn from multiple pollsters and reflect percentages for each party.</p>
+            <div id="pollChart"></div>
+        </section>
+        <section id="predictions" class="tab-content">
+            <h2>Seat Predictions for the Next Election</h2>
+            <p>Using a simple uniform national swing model, we estimate the number of seats each party might win in the next UK general election. These predictions are based on the latest polling averages and do not account for local variations or tactical voting.</p>
+            <div id="predictionChart"></div>
+        </section>
+    </main>
+    <script>
+    // Immediately invoked async function to load data and initialize content
+    (async function() {
+        // Load GeoJSON and mapping files
+        const geoData = await fetch('data/constituencies_simplified.geojson').then(r => r.json());
+        const winners2019 = await fetch('data/winners2019.json').then(r => r.json());
+        const winners2024 = await fetch('data/winners2024.json').then(r => r.json());
+        const seatCounts = await fetch('data/predicted_seat_counts.json').then(r => r.json());
+
+        // Colour palette for parties
+        const partyColors = {
+            'Lab': '#e41a1c',      // Labour red
+            'Con': '#005ea5',      // Conservative blue
+            'LD':  '#faa61a',      // Liberal Democrat orange
+            'RUK': '#009fae',      // Reform UK teal
+            'Green': '#309a3a',    // Green Party green
+            'SNP': '#f7e017',      // Scottish National Party yellow
+            'PC': '#006B3F',       // Plaid Cymru green
+            'DUP': '#850000',      // Democratic Unionist Party burgundy
+            'SF': '#006600',       // Sinn Féin dark green
+            'SDLP': '#77b900',     // Social Democratic & Labour Party lime
+            'UUP': '#2B65EC',      // Ulster Unionist Party royal blue
+            'APNI': '#ff7f00',     // Alliance Party orange
+            'Others': '#969696'    // Grey for other/independent
+        };
+
+        // Helper: create legend HTML
+        function buildLegend(containerId) {
+            const parties = ['Lab','Con','LD','RUK','Green','SNP','PC','DUP','SF','SDLP','UUP','APNI','Others'];
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            parties.forEach(p => {
+                const item = document.createElement('span');
+                item.className = 'legend-item';
+                const swatch = document.createElement('span');
+                swatch.className = 'legend-color';
+                swatch.style.backgroundColor = partyColors[p] || '#969696';
+                item.appendChild(swatch);
+                const label = document.createTextNode(' ' + p);
+                item.appendChild(label);
+                container.appendChild(item);
+            });
+        }
+
+        // Create maps for a given winners dictionary
+        function createElectionMap(divId, winners) {
+            const map = L.map(divId, { zoomSnap: 0.25 }).setView([54.5, -3], 5.5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 12,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            L.geoJSON(geoData, {
+                style: function(feature) {
+                    const code = feature.properties.PCON24CD;
+                    const party = winners[code] || 'Others';
+                    return {
+                        fillColor: partyColors[party] || partyColors['Others'],
+                        weight: 1,
+                        color: '#ffffff',
+                        fillOpacity: 0.8
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    const code = feature.properties.PCON24CD;
+                    const party = winners[code] || 'Others';
+                    const name = feature.properties.PCON24NM;
+                    layer.bindPopup('<strong>' + name + '</strong><br/>Winner: ' + party);
+                }
+            }).addTo(map);
+            return map;
+        }
+
+        // Initialize the 2019 and 2024 maps
+        createElectionMap('map2019Div', winners2019);
+        createElectionMap('map2024Div', winners2024);
+        // Build legends
+        buildLegend('legend2019');
+        buildLegend('legend2024');
+
+        // Load polling data and plot chart
+        const pollCsvText = await fetch('data/uk_polling_2024_2025_national_dates_for_chart.csv').then(r => r.text());
+        Papa.parse(pollCsvText, {
+            header: true,
+            dynamicTyping: true,
+            complete: function(results) {
+                const data = results.data.filter(row => row.date);
+                // Define parties we want to chart; note column names: Lab, Con, Ref, LD, Grn, SNP, PC
+                const columns = {
+                    'Lab': { x: [], y: [], name: 'Lab', color: partyColors['Lab'] },
+                    'Con': { x: [], y: [], name: 'Con', color: partyColors['Con'] },
+                    'Ref': { x: [], y: [], name: 'Reform', color: partyColors['RUK'] },
+                    'LD':  { x: [], y: [], name: 'LD', color: partyColors['LD'] },
+                    'Grn': { x: [], y: [], name: 'Green', color: partyColors['Green'] },
+                    'SNP': { x: [], y: [], name: 'SNP', color: partyColors['SNP'] },
+                    'PC':  { x: [], y: [], name: 'PC', color: partyColors['PC'] }
+                };
+                data.forEach(row => {
+                    const date = row.date;
+                    Object.keys(columns).forEach(col => {
+                        const val = row[col];
+                        if (val !== null && val !== undefined && val !== '') {
+                            columns[col].x.push(date);
+                            columns[col].y.push(Number(val));
+                        }
+                    });
+                });
+                const traces = Object.values(columns).map(col => ({
+                    x: col.x,
+                    y: col.y,
+                    name: col.name,
+                    mode: 'lines',
+                    line: { color: col.color }
+                }));
+                Plotly.newPlot('pollChart', traces, {
+                    title: 'UK National Voting Intention Polls',
+                    xaxis: { title: 'Date' },
+                    yaxis: { title: 'Vote share (%)' },
+                    legend: { orientation: 'h', y: -0.2 }
+                }, { responsive: true });
+            }
+        });
+
+        // Plot seat predictions
+        const x = Object.keys(seatCounts);
+        const y = x.map(p => seatCounts[p]);
+        const predTrace = {
+            x: x,
+            y: y,
+            type: 'bar',
+            marker: { color: x.map(p => partyColors[p] || partyColors['Others']) }
+        };
+        Plotly.newPlot('predictionChart', [predTrace], {
+            title: 'Predicted Seat Counts (Uniform National Swing)',
+            xaxis: { title: 'Party' },
+            yaxis: { title: 'Seats' }
+        }, { responsive: true });
+
+        // Tab switching logic
+        const buttons = document.querySelectorAll('.tab-button');
+        const tabs = document.querySelectorAll('.tab-content');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                buttons.forEach(b => b.classList.remove('active'));
+                tabs.forEach(tab => tab.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+    })();
+    </script>
+</body>
+</html>
