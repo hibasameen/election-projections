@@ -7,12 +7,29 @@ Interactive constituency-level seat projection model for UK general elections, b
 ## Features
 
 - **Swing models** — Uniform National Swing (UNS) and Proportional swing, applied at constituency level with renormalisation
-- **Vote share sliders** — pre-loaded from a quality-weighted Kalman smoother; separate regional sliders for Scotland (SNP) and Wales (Plaid Cymru)
+- **Smoother selection** — choose between Kalman, LOWESS, or Rolling 21-day smoothers to pre-load vote share sliders; separate regional sliders for Scotland (SNP) and Wales (Plaid Cymru)
 - **Tactical voting** — three configurable models (progressive consolidation, right consolidation, anti-Reform squeeze) layered on top of the swing projection
 - **Scenarios** — one-click presets for Green surge, Reform decline, and Lab/Con recovery
 - **Interactive map** — all 650 constituency boundaries embedded (simplified ONS Dec 2024 GeoJSON), with projected/actual/change-only views
-- **Polling trends** — 406 polls (Jul 2024 – Mar 2026) from 18+ pollsters with LOWESS, Rolling 21-day, and Kalman smoothers; toggle weighted/unweighted
+- **Polling trends** — 409 polls (Jul 2024 – Apr 2026) from 18+ pollsters with LOWESS, Rolling 21-day, and Kalman smoothers; toggle weighted/unweighted
 - **Detailed tables** — summary, marginals, seat changes, tactical impact, regional breakdown, and full seat list with search/filter
+
+## Repository structure
+
+```
+├── index.html                     # Main projection tool (self-contained, ~5 MB)
+├── notebook/
+│   └── poll_data_lowess_2026.ipynb  # Poll extraction & smoothing notebook
+├── data/
+│   ├── uk_polling_2024_2026_national_dates_for_chart.csv  # 409 polls, raw data
+│   └── Pollster_Ratings.csv         # Quality ratings for weighting
+├── maps/
+│   ├── uk_polls_lowess.html         # Interactive LOWESS polling chart
+│   ├── uk_2019_2024_combined_map.html
+│   ├── uk_2019_2024_layers.html
+│   └── uk_swing_map_plain_fixed_small.html
+└── README.md
+```
 
 ## Data sources
 
@@ -24,7 +41,7 @@ Interactive constituency-level seat projection model for UK general elections, b
 
 ## Architecture
 
-The entire tool is a **single self-contained HTML file** (~5 MB). All constituency data, boundary geometries, and polling data are embedded inline. The only external dependencies are CDN-hosted JavaScript libraries:
+The projection tool is a **single self-contained HTML file** (~5 MB). All constituency data, boundary geometries, and polling data are embedded inline. The only external dependencies are CDN-hosted JavaScript libraries:
 
 - [Leaflet.js](https://leafletjs.com/) — map rendering
 - [Plotly.js](https://plotly.com/javascript/) — charts
