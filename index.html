@@ -1423,6 +1423,7 @@ function switchTab(name,el){
   document.getElementById('tab-'+name).classList.add('active');
   currentTab=name;
   if(name==='map'){autoLoadMap();if(leafletMap)setTimeout(()=>leafletMap.invalidateSize(),60);}
+  if(name==='polling'){setTimeout(()=>{const el=document.getElementById('embedded-poll-chart');if(el)Plotly.Plots.resize(el);},60);}
   renderActiveTab(seatCounts(projected));
 }
 
