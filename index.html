@@ -9,17 +9,25 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:#f4f5f7;color:#1a1a2e;min-height:100vh}
-.app{max-width:1280px;margin:0 auto;padding:20px}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f4f5f7;color:#1a1a2e;min-height:100vh;display:flex;flex-direction:column}
+.app{max-width:1280px;margin:0 auto;padding:20px 20px 40px;flex:1;display:flex;flex-direction:column}
 h1{font-size:1.6rem;font-weight:700;color:#1a1a2e;margin-bottom:4px}
 .subtitle{font-size:.85rem;color:#666;margin-bottom:4px}
 .poll-banner{background:#1a1a2e;color:#fff;border-radius:8px;padding:10px 16px;
   font-size:.83rem;margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .poll-banner strong{color:#FDBB30}
 .pill{background:rgba(255,255,255,.15);border-radius:12px;padding:2px 10px;font-size:.78rem}
-.grid{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:stretch}
+.grid{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:stretch;flex:1}
 @media(max-width:900px){.grid{grid-template-columns:1fr}}
-.panel{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.panel{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08);overflow-y:auto}
+.collapse-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.collapse-header .panel-title{margin-bottom:0}
+.collapse-toggle{width:22px;height:22px;border-radius:4px;border:1px solid #ddd;background:#f8f8f8;
+  display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#888;
+  flex-shrink:0;transition:background .15s}
+.collapse-toggle:hover{background:#eee}
+.collapse-body{overflow:hidden;transition:max-height .3s ease}
+.collapse-body.collapsed{max-height:0 !important;margin-top:0 !important;padding-top:0 !important}
 .panel-title{font-size:.78rem;font-weight:700;color:#888;text-transform:uppercase;
   letter-spacing:.05em;margin-bottom:12px}
 
@@ -170,9 +178,9 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid #eee;
 .meta-card .value{font-size:.82rem;color:#333;line-height:1.4}
 
 /* Footer */
-.footer{position:sticky;bottom:0;z-index:100;background:#f4f5f7;padding:10px 20px;border-top:1px solid #e0e0e0;
-  display:flex;justify-content:space-between;align-items:center;
-  font-size:.72rem;color:#aaa;flex-wrap:wrap;gap:8px}
+.footer{position:fixed;bottom:0;left:0;right:0;z-index:100;background:#f4f5f7;padding:8px 20px;border-top:1px solid #e0e0e0;
+  display:flex;justify-content:center;align-items:center;gap:16px;
+  font-size:.72rem;color:#aaa}
 </style>
 </head>
 <body>
@@ -191,50 +199,65 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid #eee;
   <div class="grid">
     <!-- ── LEFT: CONTROLS ── -->
     <div class="panel">
-      <div class="panel-title">Vote share inputs</div>
+      <!-- Vote Share Inputs (expanded by default) -->
+      <div class="collapse-header" onclick="toggleSection('sec-votes',this)">
+        <div class="panel-title">Vote share inputs</div>
+        <span class="collapse-toggle">−</span>
+      </div>
+      <div class="collapse-body" id="sec-votes" style="margin-top:12px">
+        <div class="slider-group">
+          <div class="slider-group-label">GB — England, Scotland &amp; Wales</div>
+          <div id="gb-sliders"></div>
+        </div>
+        <div class="slider-group">
+          <div class="slider-group-label">Scotland only</div>
+          <div id="sc-sliders"></div>
+        </div>
+        <div class="slider-group">
+          <div class="slider-group-label">Wales only</div>
+          <div id="wal-sliders"></div>
+        </div>
+        <div class="total-row">
+          <span>GB total (main parties)</span>
+          <span class="total-val" id="total-pct">—</span>
+        </div>
+        <div style="font-size:.67rem;color:#bbb;margin-top:3px">~7% held constant for independents &amp; minor parties</div>
+      </div>
 
-      <div class="slider-group">
-        <div class="slider-group-label">GB — England, Scotland &amp; Wales</div>
-        <div id="gb-sliders"></div>
-      </div>
-      <div class="slider-group">
-        <div class="slider-group-label">Scotland only</div>
-        <div id="sc-sliders"></div>
-      </div>
-      <div class="slider-group">
-        <div class="slider-group-label">Wales only</div>
-        <div id="wal-sliders"></div>
-      </div>
-      <div class="total-row">
-        <span>GB total (main parties)</span>
-        <span class="total-val" id="total-pct">—</span>
-      </div>
-      <div style="font-size:.67rem;color:#bbb;margin-top:3px">~7% held constant for independents &amp; minor parties</div>
+      <div style="border-top:1px solid #eee;margin:14px 0"></div>
 
-      <div style="margin-top:12px">
-        <div class="panel-title" style="margin-bottom:5px">Swing model</div>
+      <!-- Swing Model (expanded by default) -->
+      <div class="collapse-header" onclick="toggleSection('sec-swing',this)">
+        <div class="panel-title">Swing model</div>
+        <span class="collapse-toggle">−</span>
+      </div>
+      <div class="collapse-body" id="sec-swing" style="margin-top:10px">
         <select id="swing-model">
           <option value="uns">Uniform National Swing (UNS)</option>
           <option value="prop" selected>Proportional swing</option>
         </select>
+        <div style="margin-top:10px">
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#aaa;letter-spacing:.05em;margin-bottom:5px">Polling smoother</div>
+          <select id="smoother-select" onchange="resetToPolls()">
+            <option value="kalman" selected>Kalman smoother</option>
+            <option value="lowess">LOWESS</option>
+            <option value="rolling">Rolling 21-day</option>
+          </select>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-polls" onclick="resetToPolls()">📊 Latest polls</button>
+          <button class="btn" onclick="resetTo2024()">↩ 2024</button>
+        </div>
       </div>
 
-      <div style="margin-top:12px">
-        <div class="panel-title" style="margin-bottom:5px">Polling smoother</div>
-        <select id="smoother-select" onchange="resetToPolls()">
-          <option value="kalman" selected>Kalman smoother</option>
-          <option value="lowess">LOWESS</option>
-          <option value="rolling">Rolling 21-day</option>
-        </select>
-      </div>
+      <div style="border-top:1px solid #eee;margin:14px 0"></div>
 
-      <div class="btn-row" style="margin-top:12px">
-        <button class="btn btn-polls" onclick="resetToPolls()">📊 Latest polls</button>
-        <button class="btn" onclick="resetTo2024()">↩ 2024</button>
+      <!-- Scenarios (collapsed by default) -->
+      <div class="collapse-header" onclick="toggleSection('sec-scenarios',this)">
+        <div class="panel-title">Scenarios</div>
+        <span class="collapse-toggle">+</span>
       </div>
-
-      <div style="margin-top:12px">
-        <div class="panel-title" style="margin-bottom:6px">Scenarios</div>
+      <div class="collapse-body collapsed" id="sec-scenarios" style="margin-top:10px">
         <div class="btn-row" style="margin-top:0">
           <button class="btn" onclick="setScenario('green_surge')" title="Green +8pp from Lab/LD bleed">🌿 Green surge</button>
           <button class="btn" onclick="setScenario('reform_decline')" title="Reform -8pp, mostly to Con">📉 Reform decline</button>
@@ -242,10 +265,14 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid #eee;
         </div>
       </div>
 
-      <!-- Tactical voting -->
-      <div class="tactical-section">
-        <div class="tactical-title">🧩 Tactical voting</div>
+      <div style="border-top:1px solid #eee;margin:14px 0"></div>
 
+      <!-- Tactical Voting (collapsed by default) -->
+      <div class="collapse-header" onclick="toggleSection('sec-tactical',this)">
+        <div class="panel-title">Tactical voting</div>
+        <span class="collapse-toggle">+</span>
+      </div>
+      <div class="collapse-body collapsed" id="sec-tactical" style="margin-top:10px">
         <div class="tact-row">
           <div class="tact-label"><span class="tact-badge bg-prog">PROG</span> Progressive consolidation</div>
           <div class="tact-desc">Non-leading Lab/LD/Green (+ SNP/PC in Scotland/Wales) voters switch to strongest progressive locally</div>
@@ -255,7 +282,6 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid #eee;
             <span class="tact-val" id="txt-tProg">0%</span>
           </div>
         </div>
-
         <div class="tact-row">
           <div class="tact-label"><span class="tact-badge bg-right">RIGHT</span> Right consolidation</div>
           <div class="tact-desc">Trailing Con/Reform voters switch to whichever leads locally</div>
@@ -265,7 +291,6 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid #eee;
             <span class="tact-val" id="txt-tRight">0%</span>
           </div>
         </div>
-
         <div class="tact-row">
           <div class="tact-label"><span class="tact-badge bg-anti">ANTI</span> Anti-Reform squeeze</div>
           <div class="tact-desc">Reform's local share shifts to whoever is best-placed to beat them</div>
@@ -275,7 +300,6 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid #eee;
             <span class="tact-val" id="txt-tAntiRef">0%</span>
           </div>
         </div>
-
         <div id="tactical-impact" class="tact-impact"></div>
       </div>
     </div>
@@ -1438,6 +1462,7 @@ function makeSliders(cid,configs){
     return`<div class="slider-row"><div class="party-label"><span class="party-dot" style="background:${cfg.color}"></span>${cfg.label}</div><input type="range" id="sld-${cfg.key}" min="0" max="${cfg.max}" step="0.1" value="${v.toFixed(1)}" oninput="onSlider('${cfg.key}',this.value)"><span class="slider-val" id="txt-${cfg.key}">${v.toFixed(1)}%</span><span class="slider-base">2024: ${b.toFixed(1)}%</span></div>`;
   }).join('');
 }
+function toggleSection(id,header){const body=document.getElementById(id);const tog=header.querySelector('.collapse-toggle');body.classList.toggle('collapsed');tog.textContent=body.classList.contains('collapsed')?'+':'−';}
 function onSlider(key,val){state[key]=parseFloat(val);document.getElementById('txt-'+key).textContent=parseFloat(val).toFixed(1)+'%';updateTotal();update();}
 function onTactical(key,val){state[key]=parseInt(val);document.getElementById('txt-'+key).textContent=val+'%';update();}
 function updateTotal(){const t=GB_PARTIES.reduce((s,p)=>s+state[p],0);const el=document.getElementById('total-pct');el.textContent=t.toFixed(1)+'%';el.className='total-val'+(t>100?' total-warn':'');}
