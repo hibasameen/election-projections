@@ -573,6 +573,8 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
         <div id="tab-changed" class="tab-content">
           <div class="filter-row">
             <input class="search-box" placeholder="Search constituency…" id="changed-search" oninput="renderChanged()">
+            <select id="changed-gained" onchange="renderChanged()"><option value="">Gained by…</option></select>
+            <select id="changed-lost" onchange="renderChanged()"><option value="">Lost by…</option></select>
           </div>
           <div id="changed-count" style="font-size:.76rem;color:#888;margin-bottom:8px"></div>
           <div class="tbl-wrap"><table id="changed-table">
@@ -1564,7 +1566,9 @@ function renderMarginals(){
 }
 function renderChanged(){
   const q=(document.getElementById('changed-search')?.value||'').toLowerCase();
-  const rows=projected.filter(c=>c.changed&&(!q||c.name.toLowerCase().includes(q)||c.mp.toLowerCase().includes(q)));
+  const gp=document.getElementById('changed-gained')?.value||'';
+  const lp=document.getElementById('changed-lost')?.value||'';
+  const rows=projected.filter(c=>c.changed&&(!q||c.name.toLowerCase().includes(q)||c.mp.toLowerCase().includes(q))&&(!gp||c.projWinner===gp)&&(!lp||c.winner===lp));
   document.getElementById('changed-count').textContent=`${rows.length} seat${rows.length!==1?'s':''} projected to change hands`;
   document.querySelector('#changed-table tbody').innerHTML=rows.sort((a,b)=>a.name.localeCompare(b.name)).map(c=>
     `<tr class="changed-row"><td><strong>${c.name}</strong></td><td style="color:#888;font-size:.73rem">${c.region}</td><td>${pill(c.winner)}</td><td>${pill(c.projWinner)}${c.tacticalChange?' <span style="color:#e67e22;font-size:.65rem">⚡</span>':''}</td><td style="font-size:.73rem">${c.mp}</td><td>${c.projMajPct.toFixed(1)}%</td></tr>`).join('');
@@ -1701,6 +1705,8 @@ function populateFilters(){
   const regions=[...new Set(SEATS.map(s=>s.region))].sort();
   ['marg-region','all-region'].forEach(id=>{const el=document.getElementById(id);regions.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;el.appendChild(o);});});
   const aw=document.getElementById('all-winner');[...new Set(SEATS.map(s=>s.winner))].sort().forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=PARTY_NAMES[p]||p;aw.appendChild(o);});
+  const allParties=[...new Set(SEATS.map(s=>s.winner))].sort();
+  ['changed-gained','changed-lost'].forEach(id=>{const el=document.getElementById(id);allParties.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=PARTY_NAMES[p]||p;el.appendChild(o);});});
 }
 // Polling chart embedded inline — no iframe needed
 makeSliders('gb-sliders',SLIDER_CFG.gb);
