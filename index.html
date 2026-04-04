@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UK Election Projection</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='8' y='24' width='48' height='36' rx='4' fill='%230f172a'/><rect x='14' y='30' width='36' height='4' rx='2' fill='%23f4b740'/><rect x='24' y='2' width='16' height='28' rx='3' fill='%23f4b740' transform='rotate(-12 32 16)'/><path d='M28 8l4 10 4-10' fill='%230f172a'/></svg>">
 <script src="https://cdn.plot.ly/plotly-3.1.1.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -180,7 +181,9 @@ h1{font-size:clamp(1.05rem,2vw,1.35rem);font-weight:800;line-height:1.05;letter-
 .slider-row{display:grid;grid-template-columns:96px 1fr 56px 64px;gap:8px;align-items:center;margin-bottom:11px}
 .party-dot{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:7px;box-shadow:0 0 0 3px rgba(255,255,255,.85)}
 .party-label{font-size:.84rem;font-weight:700;display:flex;align-items:center;color:#1f2937}
-input[type=range]{width:100%;accent-color:#475467;cursor:pointer}
+input[type=range]{width:100%;cursor:pointer}
+.slider-row input[type=range]{accent-color:#475467}
+.tact-controls input[type=range]{accent-color:var(--tact-accent)}
 .slider-val{font-size:.9rem;font-weight:780;text-align:right;color:#0f172a}
 .slider-base{font-size:.68rem;color:#98a2b3;text-align:right;white-space:nowrap}
 .total-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0 0;border-top:1px solid var(--line);margin-top:8px;font-size:.74rem;color:#667085}
@@ -489,7 +492,7 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
           <div class="tact-desc">Non-leading Lab/LD/Green (+ SNP/PC in Scotland/Wales) voters switch to strongest progressive locally</div>
           <div class="tact-controls">
             <input type="range" id="sld-tProg" min="0" max="50" step="1" value="0"
-                   oninput="onTactical('tProg',this.value)" style="accent-color:#02A95B">
+                   oninput="onTactical('tProg',this.value)" style="--tact-accent:#02A95B">
             <span class="tact-val" id="txt-tProg">0%</span>
           </div>
         </div>
@@ -498,7 +501,7 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
           <div class="tact-desc">Trailing Con/Reform voters switch to whichever leads locally</div>
           <div class="tact-controls">
             <input type="range" id="sld-tRight" min="0" max="50" step="1" value="0"
-                   oninput="onTactical('tRight',this.value)" style="accent-color:#0087DC">
+                   oninput="onTactical('tRight',this.value)" style="--tact-accent:#0087DC">
             <span class="tact-val" id="txt-tRight">0%</span>
           </div>
         </div>
@@ -507,7 +510,7 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
           <div class="tact-desc">Reform's local share shifts to whoever is best-placed to beat them</div>
           <div class="tact-controls">
             <input type="range" id="sld-tAntiRef" min="0" max="40" step="1" value="0"
-                   oninput="onTactical('tAntiRef',this.value)" style="accent-color:#c0392b">
+                   oninput="onTactical('tAntiRef',this.value)" style="--tact-accent:#c0392b">
             <span class="tact-val" id="txt-tAntiRef">0%</span>
           </div>
         </div>
@@ -1680,7 +1683,7 @@ function updateHeroStats(counts){
 function update(){project();const counts=seatCounts(projected);renderBar(counts);updateHeroStats(counts);renderActiveTab(counts);}
 
 // ── Sliders ───────────────────────────────────────────────────────────────────
-const SLIDER_CFG={gb:[{key:'Lab',label:'Labour',color:'#DC241f',max:60},{key:'Con',label:'Conservative',color:'#0087DC',max:60},{key:'RUK',label:'Reform UK',color:'#12B6CF',max:55},{key:'LD',label:'Lib Dem',color:'#FF6400',max:40},{key:'Green',label:'Green',color:'#02A95B',max:35}],sc:[{key:'SNP',label:'SNP',color:'#c8b400',max:65}],wal:[{key:'PC',label:'Plaid Cymru',color:'#005B54',max:50}]};
+const SLIDER_CFG={gb:[{key:'Lab',label:'Labour',color:'#DC241f',max:60},{key:'Con',label:'Con',color:'#0087DC',max:60},{key:'RUK',label:'Reform UK',color:'#12B6CF',max:55},{key:'LD',label:'Lib Dem',color:'#FF6400',max:40},{key:'Green',label:'Green',color:'#02A95B',max:35}],sc:[{key:'SNP',label:'SNP',color:'#c8b400',max:65}],wal:[{key:'PC',label:'Plaid Cymru',color:'#005B54',max:50}]};
 const baselines={...NAT2024,SNP:SNP2024,PC:PC2024};
 function makeSliders(cid,configs){
   document.getElementById(cid).innerHTML=configs.map(cfg=>{const v=state[cfg.key],b=baselines[cfg.key];
