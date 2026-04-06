@@ -578,6 +578,12 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
             <select id="marg-type" onchange="renderMarginals()">
               <option value="50">Top 50</option><option value="100">Top 100</option><option value="all">All</option>
             </select>
+            <label>Sort:</label>
+            <select id="marg-sort" onchange="renderMarginals()">
+              <option value="majority">Majority %</option>
+              <option value="name">Name</option>
+              <option value="winprob">Win probability (most uncertain)</option>
+            </select>
           </div>
           <div class="tbl-wrap"><table id="marginals-table">
             <thead><tr><th>Constituency</th><th>Region</th><th>Winner</th><th>2nd</th><th>Majority %</th><th>Swing needed</th></tr></thead>
@@ -591,6 +597,12 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
             <input class="search-box" placeholder="Search constituency…" id="changed-search" oninput="renderChanged()">
             <select id="changed-gained" onchange="renderChanged()"><option value="">Gained by…</option></select>
             <select id="changed-lost" onchange="renderChanged()"><option value="">Lost by…</option></select>
+            <label>Sort:</label>
+            <select id="changed-sort" onchange="renderChanged()">
+              <option value="name">Name</option>
+              <option value="majority">Majority %</option>
+              <option value="winprob">Win probability (most uncertain)</option>
+            </select>
           </div>
           <div id="changed-count" style="font-size:.76rem;color:#888;margin-bottom:8px"></div>
           <div class="tbl-wrap"><table id="changed-table">
@@ -622,6 +634,12 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
             <input class="search-box" placeholder="Search constituency or MP…" id="all-search" oninput="renderAll()">
             <select id="all-winner" onchange="renderAll()"><option value="">All winners</option></select>
             <select id="all-region" onchange="renderAll()"><option value="">All regions</option></select>
+            <label>Sort:</label>
+            <select id="all-sort" onchange="renderAll()">
+              <option value="name">Name</option>
+              <option value="majority">Majority %</option>
+              <option value="winprob">Win probability (most uncertain)</option>
+            </select>
           </div>
           <div class="tbl-wrap"><table id="all-table">
             <thead><tr><th>Constituency</th><th>Region</th><th>2024</th><th>Projected</th><th>Majority %</th><th>MP</th></tr></thead>
@@ -1590,6 +1608,7 @@ function renderBar(counts){
   else if(lar>=280){badge.className='majority-badge majority-hung';badge.textContent=`Hung — ${PARTY_NAMES[lp]||lp} largest (${lar})`;}
   else{badge.className='majority-badge majority-no';badge.textContent='Hung parliament';}
   const cntNT=seatCounts(projNoTact);
+  const isBayes=document.getElementById('swing-model').value==='bayes';
   document.getElementById('changes-strip').innerHTML=
     [...parties.filter(p=>['Lab','Con','LD','RUK','Green','SNP','PC','Ind'].includes(p))].map(p=>{
       const n=counts[p]||0,was=SEATS2024[p]||0,d=n-was;
@@ -1605,7 +1624,6 @@ function renderBar(counts){
         ${ts}${ciStr}</div>`;
     }).join('');
   // Bayesian uncertainty display
-  const isBayes=document.getElementById('swing-model').value==='bayes';
   const bstrip=document.getElementById('bayes-uncertainty-strip');
   if(isBayes){
     bstrip.style.display='block';
@@ -1676,10 +1694,25 @@ function winProbBar(cid){
   const top=sorted[0];
   return`${bars}<span class="prob-text">${top[0]} ${top[1]}%</span>`;
 }
+function _winEntropy(cid){
+  const wp=BAYES_WIN_PROBS[cid];if(!wp)return 0;
+  return-Object.values(wp).reduce((s,v)=>{const p=v/100;return p>0?s+p*Math.log(p):s;},0);
+}
 function renderMarginals(){
   const rf=document.getElementById('marg-region').value,ns=document.getElementById('marg-type').value,n=ns==='all'?9999:parseInt(ns);
+  const sortBy=document.getElementById('marg-sort')?.value||'majority';
   const isBayes=document.getElementById('swing-model').value==='bayes';
-  const rows=projected.filter(c=>!rf||c.region===rf).slice().sort((a,b)=>a.projMajPct-b.projMajPct).slice(0,n);
+  let rows=projected.filter(c=>!rf||c.region===rf).slice();
+  if(sortBy==='winprob')rows.sort((a,b)=>_winEntropy(b.id)-_winEntropy(a.id));
+  else if(sortBy==='name')rows.sort((a,b)=>a.name.localeCompare(b.name));
+  else rows.sort((a,b)=>a.projMajPct-b.projMajPct);
+  rows=rows.slice(0,n);
+  // Update header
+  const mth=document.querySelector('#marginals-table thead tr');
+  if(mth){
+    const wpH=isBayes?'<th>Win prob.</th>':'';
+    mth.innerHTML=`<th>Constituency</th><th>Region</th><th>Winner</th><th>2nd</th><th>Majority %</th><th>Swing needed</th>${wpH}`;
+  }
   document.querySelector('#marginals-table tbody').innerHTML=rows.map(c=>{
     const wpCol=isBayes?`<td style="white-space:nowrap">${winProbBar(c.id)}</td>`:'';
     return`<tr class="${c.changed?'changed-row':''}"><td><strong>${c.name}</strong></td><td style="color:#888;font-size:.73rem">${c.region}</td><td>${pill(c.projWinner)}</td><td>${pill(c.projSecond)}</td><td>${c.projMajPct.toFixed(1)}%</td><td>${(c.projMajPct/2).toFixed(1)}%</td>${wpCol}</tr>`;
@@ -1692,7 +1725,17 @@ function renderChanged(){
   const rows=projected.filter(c=>c.changed&&(!q||c.name.toLowerCase().includes(q)||c.mp.toLowerCase().includes(q))&&(!gp||c.projWinner===gp)&&(!lp||c.winner===lp));
   document.getElementById('changed-count').textContent=`${rows.length} seat${rows.length!==1?'s':''} projected to change hands`;
   const isBayes2=document.getElementById('swing-model').value==='bayes';
-  document.querySelector('#changed-table tbody').innerHTML=rows.sort((a,b)=>a.name.localeCompare(b.name)).map(c=>{
+  const chSort=document.getElementById('changed-sort')?.value||'name';
+  if(chSort==='winprob')rows.sort((a,b)=>_winEntropy(b.id)-_winEntropy(a.id));
+  else if(chSort==='majority')rows.sort((a,b)=>a.projMajPct-b.projMajPct);
+  else rows.sort((a,b)=>a.name.localeCompare(b.name));
+  // Update header
+  const cth=document.querySelector('#changed-table thead tr');
+  if(cth){
+    const wpH=isBayes2?'<th>Win prob.</th>':'';
+    cth.innerHTML=`<th>Constituency</th><th>Region</th><th>2024 winner</th><th>Projected</th><th>MP (2024)</th><th>Majority %</th>${wpH}`;
+  }
+  document.querySelector('#changed-table tbody').innerHTML=rows.map(c=>{
     const wpCol=isBayes2?`<td style="white-space:nowrap">${winProbBar(c.id)}</td>`:'';
     return`<tr class="changed-row"><td><strong>${c.name}</strong></td><td style="color:#888;font-size:.73rem">${c.region}</td><td>${pill(c.winner)}</td><td>${pill(c.projWinner)}${c.tacticalChange?' <span style="color:#e67e22;font-size:.65rem">⚡</span>':''}</td><td style="font-size:.73rem">${c.mp}</td><td>${c.projMajPct.toFixed(1)}%</td>${wpCol}</tr>`;
   }).join('');
@@ -1720,7 +1763,17 @@ function renderAll(){
   const pw=document.getElementById('all-winner')?.value||'',rg=document.getElementById('all-region')?.value||'';
   const rows=projected.filter(c=>(!q||c.name.toLowerCase().includes(q)||c.mp.toLowerCase().includes(q))&&(!pw||c.projWinner===pw)&&(!rg||c.region===rg));
   const isBayes3=document.getElementById('swing-model').value==='bayes';
-  document.querySelector('#all-table tbody').innerHTML=rows.sort((a,b)=>a.name.localeCompare(b.name)).map(c=>{
+  const allSort=document.getElementById('all-sort')?.value||'name';
+  if(allSort==='winprob')rows.sort((a,b)=>_winEntropy(b.id)-_winEntropy(a.id));
+  else if(allSort==='majority')rows.sort((a,b)=>a.projMajPct-b.projMajPct);
+  else rows.sort((a,b)=>a.name.localeCompare(b.name));
+  // Update header
+  const ath=document.querySelector('#all-table thead tr');
+  if(ath){
+    const wpH=isBayes3?'<th>Win prob.</th>':'';
+    ath.innerHTML=`<th>Constituency</th><th>Region</th><th>2024</th><th>Projected</th><th>Majority %</th><th>MP</th>${wpH}`;
+  }
+  document.querySelector('#all-table tbody').innerHTML=rows.map(c=>{
     const wpCol=isBayes3?`<td style="white-space:nowrap">${winProbBar(c.id)}</td>`:'';
     return`<tr class="${c.changed?'changed-row':''}"><td><strong>${c.name}</strong></td><td style="color:#888;font-size:.73rem">${c.region}</td><td>${pill(c.winner)}</td><td>${pill(c.projWinner)}${c.changed?' ←':''}${c.tacticalChange?' ⚡':''}</td><td>${c.projMajPct.toFixed(1)}%</td><td style="font-size:.73rem">${c.mp}</td>${wpCol}</tr>`;
   }).join('');
