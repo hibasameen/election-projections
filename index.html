@@ -564,8 +564,7 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
         <!-- Summary -->
         <div id="tab-summary" class="tab-content active">
           <div class="tbl-wrap"><table id="summary-table">
-            <thead><tr><th>Party</th><th>Seats</th><th>vs 2024</th>
-            <th>With tactical</th><th>Tactical Δ</th><th>Current polls</th><th>2024 result</th></tr></thead>
+            <thead><tr><th>Party</th><th>Seats</th><th>±2024</th><th>With tactical</th><th>Tact. Δ</th><th>Vote %</th><th>2024 %</th></tr></thead>
             <tbody></tbody>
           </table></div>
         </div>
@@ -1632,16 +1631,23 @@ function pill(p){
 }
 
 // ── Tab renders ───────────────────────────────────────────────────────────────
+let lastSummaryMode='std';
 function renderSummary(counts){
   const cntNT=seatCounts(projNoTact);
   const isBayes=document.getElementById('swing-model').value==='bayes';
   const order=['Lab','Con','LD','RUK','Green','SNP','PC','DUP','SF','SDLP','UUP','APNI','Ind','Spk','Other'];
-  // Update table header for Bayesian
-  const thead=document.querySelector('#summary-table thead tr');
-  if(isBayes){
-    thead.innerHTML='<th>Party</th><th>Seats</th><th>±2024</th><th>95% CI</th><th>80% CI</th><th>Tact. swing</th><th>Tact. Δ</th><th>Vote %</th><th>2024 %</th>';
-  } else {
-    thead.innerHTML='<th>Party</th><th>Seats</th><th>±2024</th><th>Swing (tact)</th><th>Tact. Δ</th><th>Vote %</th><th>2024 %</th>';
+  // Update table header only when model changes
+  const mode=isBayes?'bayes':'std';
+  if(mode!==lastSummaryMode){
+    lastSummaryMode=mode;
+    const thead=document.querySelector('#summary-table thead tr');
+    if(thead){
+      if(isBayes){
+        thead.innerHTML='<th>Party</th><th>Seats</th><th>±2024</th><th>95% CI</th><th>80% CI</th><th>Tact. swing</th><th>Tact. Δ</th><th>Vote %</th><th>2024 %</th>';
+      } else {
+        thead.innerHTML='<th>Party</th><th>Seats</th><th>±2024</th><th>With tactical</th><th>Tact. Δ</th><th>Vote %</th><th>2024 %</th>';
+      }
+    }
   }
   document.querySelector('#summary-table tbody').innerHTML=
     order.filter(p=>(counts[p]||0)>0||(SEATS2024[p]||0)>0).map(p=>{
