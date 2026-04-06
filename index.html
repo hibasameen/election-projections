@@ -449,6 +449,7 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
         <select id="swing-model" onchange="update()">
           <option value="uns">Uniform National Swing (UNS)</option>
           <option value="prop" selected>Proportional swing</option>
+          <option value="bayes">Bayesian hierarchical</option>
         </select>
         <div style="margin-top:10px">
           <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#aaa;letter-spacing:.05em;margin-bottom:5px">Polling smoother</div>
@@ -659,14 +660,18 @@ iframe.polls-frame{width:100%;height:560px;border:1px solid var(--line);border-r
             <div class="about-meta">
               <div class="meta-card"><div class="icon">📊</div><div class="label">Data sources</div><div class="value">Constituency results: House of Commons Library 2024 GE dataset (650 seats) · Polling: Wikipedia "Opinion polling for the next UK general election" aggregate · Boundaries: ONS Open Geography Portal (Dec 2024, simplified to 500m tolerance)</div></div>
               <div class="meta-card"><div class="icon">📅</div><div class="label">Last updated</div><div class="value"><strong>2 April 2026</strong> · Kalman / LOWESS / Rolling smoothers as of 2026-04-02 · Polling data: 18+ pollsters (Jul 2024 – Apr 2026)</div></div>
-              <div class="meta-card"><div class="icon">⚙️</div><div class="label">Swing models</div><div class="value">Uniform National Swing (UNS) and Proportional swing · Applied at constituency level with renormalisation · Regional sliders for Scotland (SNP) and Wales (PC)</div></div>
+              <div class="meta-card"><div class="icon">⚙️</div><div class="label">Swing models</div><div class="value">UNS, Proportional swing, and Bayesian hierarchical · Applied at constituency level with renormalisation · Bayesian model includes region-level partial pooling and immigration covariates · Regional sliders for Scotland (SNP) and Wales (PC)</div></div>
               <div class="meta-card"><div class="icon">🗺️</div><div class="label">Coverage</div><div class="value">All 650 seats · GB parties projected nationally · SNP Scotland-only (57 seats) · PC Wales-only (32 seats) · NI parties (18 seats) held at 2024 result</div></div>
             </div>
 
             <div class="about-block">
               <h3>How the projection works</h3>
               <p>The tool takes the actual 2024 constituency-level vote shares as a baseline and applies a national swing — derived from polling data — to project what would happen if an election were held today. Users control the assumed national vote share for each party via sliders, pre-loaded from the selected polling smoother. The swing is applied independently to each of the 650 constituencies, and a winner is determined seat by seat.</p>
-              <p>Two swing models are available. <strong>Uniform National Swing (UNS)</strong> adds the same percentage-point change to every constituency: <code>new_share = old_share + (new_national − 2024_national)</code>. <strong>Proportional swing</strong> scales each constituency in proportion to its existing share: <code>new_share = old_share × (new_national / 2024_national)</code>. After either method, constituency vote shares are renormalised to sum to 100%. Proportional swing tends to produce smaller changes in safe seats and larger changes in marginals, which can be more realistic for large swings.</p>
+              <p>Three swing models are available. <strong>Uniform National Swing (UNS)</strong> adds the same percentage-point change to every constituency: <code>new_share = old_share + (new_national − 2024_national)</code>. <strong>Proportional swing</strong> scales each constituency in proportion to its existing share: <code>new_share = old_share × (new_national / 2024_national)</code>. After either method, constituency vote shares are renormalised to sum to 100%. Proportional swing tends to produce smaller changes in safe seats and larger changes in marginals, which can be more realistic for large swings.</p>
+              <p><strong>Bayesian hierarchical</strong> extends proportional swing by allowing each region to swing differently, calibrated from empirical 2019→2024 constituency-level data. The model works in additive log-ratio (ALR) space with Labour as the reference party, where proportional swing is a natural linear operation. For each party <em>p</em> and constituency <em>c</em> in region <em>r</em>, the projected log-ratio swing is:</p>
+              <p style="text-align:center;font-family:monospace;font-size:.85rem;padding:6px 0;">δ<sub>c,p</sub> = Δ<sub>national,p</sub> + (γ<sub>r,p</sub> − μ<sub>p</sub>) + β<sub>p</sub> · ΔF<sub>c</sub></p>
+              <p>where Δ<sub>national</sub> is the poll-implied national swing, (γ<sub>r</sub> − μ) is the region-specific deviation learned from the 2019→2024 data, and ΔF is a constituency-level covariate measuring the change in foreign-born population share (2011→2021 Census). The hierarchical structure is: γ<sub>r,p</sub> ~ N(μ<sub>p</sub>, τ²<sub>p</sub>) and δ<sub>c,p</sub> ~ N(γ<sub>r[c],p</sub>, σ²<sub>p</sub>), with half-Cauchy(1.5) priors on the scale parameters. The model was fit via NUTS (No-U-Turn Sampler) in PyMC with 2 chains × 2,000 draws on 643 GB constituencies across 11 regions.</p>
+              <p>Key posterior findings: Reform UK swing varied most across regions (τ = 0.80) compared to Conservative (0.33), Lib Dem (0.40), or Green (0.39). The immigration-change covariate was most informative for Reform (β = −0.15, indicating areas with high 2011–2021 immigration change already swung to Reform by 2024 and are less likely to swing further) and Green (β = +0.15). The foreign-born data covers 316 of 650 constituencies; constituencies without coverage are pooled toward their regional mean. SNP and Plaid Cymru use proportional swing within Scotland and Wales respectively, as for the other models.</p>
               <p>SNP and Plaid Cymru are handled regionally. The slider values represent their share within Scotland or Wales respectively, and are converted to GB-equivalent figures using 2024 electorate ratios (Scotland ≈ 8.7% of GB electorate, Wales ≈ 5.0%) before the swing is applied.</p>
             </div>
 
@@ -1440,6 +1445,47 @@ function applyProp(c){
   return ns;
 }
 
+// ── Bayesian hierarchical model ───────────────────────────────────────────────
+const BAYES_MU = {"Con": -0.7891, "RUK": 2.1328, "LD": -0.1695, "Green": 0.9368};
+const BAYES_GAMMA = {"East Midlands": {"Con": -0.7928, "RUK": 2.7133, "LD": -0.3416, "Green": 0.8701}, "East of England": {"Con": -0.8212, "RUK": 3.0139, "LD": -0.2005, "Green": 0.7641}, "London": {"Con": -0.4651, "RUK": 1.9325, "LD": -0.2989, "Green": 1.281}, "North East": {"Con": -0.8252, "RUK": 1.0671, "LD": -0.2673, "Green": 0.9638}, "North West": {"Con": -0.7454, "RUK": 1.8057, "LD": -0.0782, "Green": 1.0286}, "Scotland": {"Con": -1.5847, "RUK": 1.6027, "LD": -0.8962, "Green": 0.3866}, "South East": {"Con": -0.7082, "RUK": 2.8712, "LD": -0.0794, "Green": 0.6523}, "South West": {"Con": -0.6577, "RUK": 2.8762, "LD": 0.2338, "Green": 0.8435}, "Wales": {"Con": -0.6371, "RUK": 1.5855, "LD": 0.4193, "Green": 1.5869}, "West Midlands": {"Con": -0.7192, "RUK": 2.6892, "LD": -0.1466, "Green": 0.7926}, "Yorkshire and The Humber": {"Con": -0.7413, "RUK": 1.4121, "LD": -0.2326, "Green": 1.1646}};
+const BAYES_BETA_FB = {"Con": 0.021, "RUK": -0.1521, "LD": -0.0293, "Green": 0.1502};
+const BAYES_FB = {"E14001101":-1.044,"E14001173":-0.446,"E14001190":-0.342,"E14001211":-1.128,"E14001272":-0.884,"E14001285":-0.985,"E14001379":0.697,"E14001389":-0.992,"E14001440":-0.901,"E14001492":-0.957,"E14001518":-0.322,"E14001531":-0.661,"E14001557":-0.804,"E14001070":0.676,"E14001091":-0.315,"E14001102":0.23,"E14001105":-0.072,"E14001110":0.259,"E14001112":0.408,"E14001113":0.03,"E14001142":1.067,"E14001144":0.086,"E14001145":0.921,"E14001152":-0.689,"E14001158":-0.154,"E14001170":-0.674,"E14001178":-0.894,"E14001242":-0.883,"E14001277":-0.683,"E14001299":-0.599,"E14001317":-0.149,"E14001347":-0.667,"E14001350":-0.653,"E14001352":-0.256,"E14001433":0.71,"E14001443":-0.144,"E14001446":0.287,"E14001463":-0.848,"E14001491":-0.929,"E14001504":-0.402,"E14001509":-0.51,"E14001517":0.317,"E14001539":-0.497,"E14001561":-0.834,"E14001564":0.153,"E14001565":0.171,"E14001577":-0.441,"E14001585":-0.128,"E14001589":-0.918,"E14001118":-0.38,"E14001119":-0.099,"E14001120":-1.209,"E14001147":-0.971,"E14001177":-1.839,"E14001198":1.131,"E14001200":-0.395,"E14001262":-0.678,"E14001297":0.219,"E14001313":-0.347,"E14001320":0.094,"E14001321":-0.122,"E14001322":-1.697,"E14001451":-0.932,"E14001452":-0.608,"E14001462":0.005,"E14001467":0.401,"E14001470":-0.281,"E14001472":-0.974,"E14001604":-0.332,"E14001605":-1.112,"E14001066":-0.964,"E14001068":-0.277,"E14001079":-0.431,"E14001109":-0.517,"E14001140":-0.446,"E14001165":-0.839,"E14001192":0.032,"E14001193":0.547,"E14001194":1.467,"E14001195":-1.03,"E14001228":-0.601,"E14001243":-0.907,"E14001245":-0.429,"E14001287":-0.974,"E14001311":0.68,"E14001326":1.251,"E14001327":0.945,"E14001328":2.18,"E14001336":0.477,"E14001342":-0.15,"E14001355":0.524,"E14001362":-0.915,"E14001375":-0.493,"E14001391":-1.003,"E14001404":-0.421,"E14001406":4.26,"E14001407":0.017,"E14001410":0.97,"E14001412":-1.327,"E14001457":-0.465,"E14001483":-0.476,"E14001488":-1.339,"E14001490":-1.053,"E14001064":-0.335,"E14001138":-0.825,"E14001150":-0.869,"E14001181":1.256,"E14001182":1.969,"E14001335":-0.95,"E14001380":-0.594,"E14001395":-0.895,"E14001398":-0.736,"E14001413":0.412,"E14001441":-0.159,"E14001453":1.226,"E14001513":-0.522,"E14001514":-1.167,"E14001520":0.458,"E14001521":-0.37,"E14001522":-0.575,"E14001524":-0.327,"E14001526":-0.35,"E14001535":0.015,"E14001538":-0.217,"E14001541":0.354,"E14001543":-0.315,"E14001579":-0.953,"E14001594":0.223,"E14001595":0.575,"E14001597":0.381,"E14001601":-0.839,"E14001084":0.8,"E14001121":-0.637,"E14001139":0.776,"E14001149":1.889,"E14001154":-0.728,"E14001159":0.983,"E14001174":-0.789,"E14001176":0.587,"E14001226":0.856,"E14001256":-0.114,"E14001267":0.911,"E14001278":0.796,"E14001284":0.937,"E14001298":-0.021,"E14001302":0.896,"E14001345":1.572,"E14001351":-0.884,"E14001359":-0.378,"E14001365":-0.578,"E14001390":0.127,"E14001393":-0.68,"E14001396":-1.094,"E14001401":1.651,"E14001405":-0.124,"E14001408":0.054,"E14001409":0.245,"E14001425":1.354,"E14001481":1.13,"E14001489":-0.362,"E14001494":-0.937,"E14001496":1.146,"E14001497":-0.43,"E14001507":0.497,"E14001516":0.479,"E14001530":-0.766,"E14001546":2.809,"E14001568":2.97,"E14001573":0.722,"E14001578":0.098,"E14001590":-0.724,"E14001073":2.195,"E14001081":1.102,"E14001169":0.882,"E14001187":1.057,"E14001208":0.414,"E14001213":-1.161,"E14001225":1.728,"E14001270":1.587,"E14001271":1.771,"E14001279":1.065,"E14001300":3.634,"E14001301":0.11,"E14001305":0.871,"E14001331":0.858,"E14001417":1.646,"E14001434":0.165,"E14001445":0.783,"E14001448":2.587,"E14001550":-0.906,"E14001553":-1.297,"E14001556":0.8,"E14001563":-1.734,"E14001586":0.279,"E14001063":0.668,"E14001069":0.778,"E14001071":0.681,"E14001072":0.491,"E14001078":0.551,"E14001082":-0.091,"E14001117":0.635,"E14001151":-0.187,"E14001166":-0.369,"E14001184":1.128,"E14001191":2.151,"E14001214":-1.249,"E14001215":-0.394,"E14001219":0.197,"E14001220":0.028,"E14001252":-0.813,"E14001254":0.626,"E14001258":0.59,"E14001275":-0.722,"E14001294":-0.201,"E14001330":-0.798,"E14001348":0.699,"E14001366":-0.492,"E14001370":-1.41,"E14001373":-1.028,"E14001374":-0.784,"E14001376":0.041,"E14001392":-0.439,"E14001403":0.438,"E14001419":1.354,"E14001431":0.138,"E14001432":0.683,"E14001442":0.354,"E14001465":-0.077,"E14001477":0.73,"E14001505":1.332,"E14001532":0.363,"E14001555":0.142,"E14001587":-0.639,"E14001588":1.984,"E14001591":-0.291,"E14001592":0.588,"E14001593":-0.024,"E14001599":-0.305,"E14001600":0.869,"E14001080":0.109,"E14001115":0.685,"E14001116":1.03,"E14001132":1.31,"E14001134":0.099,"E14001135":0.305,"E14001155":-0.958,"E14001161":-0.018,"E14001168":-0.355,"E14001171":-0.72,"E14001231":0.433,"E14001240":-0.812,"E14001248":0.331,"E14001381":-0.992,"E14001385":-1.029,"E14001387":-0.883,"E14001388":-0.896,"E14001399":-0.467,"E14001429":-0.046,"E14001460":-0.346,"E14001485":-0.944,"E14001486":-1.098,"E14001495":-1.013,"E14001498":-0.551,"E14001511":-1.053,"E14001529":-0.935,"E14001542":-0.224,"E14001551":-0.477,"E14001575":-0.748,"E14001603":-0.009,"W07000112":-1.165,"W07000111":-1.064,"W07000098":-1.001,"W07000097":-0.645,"W07000108":-0.516,"W07000090":-0.679,"W07000109":-0.909,"W07000104":0.994,"W07000096":-1.061,"W07000086":-0.989,"W07000106":-1.095,"W07000088":-1.1,"W07000110":-0.981,"W07000092":-0.628,"S14000060":-1.042,"S14000061":1.364,"S14000109":-0.971,"S14000021":-0.093,"S14000080":1.672,"S14000081":1.648,"S14000082":0.851,"S14000083":-0.401,"S14000084":3.969,"S14000085":2.389,"S14000086":1.022,"S14000087":0.396,"S14000088":2.028,"S14000095":0.047,"S14000045":0.012,"S14000027":-0.994,"S14000100":-0.861,"S14000106":-0.655};
+
+function applyBayes(c){
+  if(c.country==='Northern Ireland')return{...c.shares};
+  const PARTIES=['Con','RUK','LD','Green'];
+  const FLOOR=0.5;
+  const ns={};
+  const labPoll=Math.max(state.Lab,FLOOR),labBase=Math.max(NAT2024.Lab,FLOOR);
+  const nationalDelta={};
+  for(const p of PARTIES){const pPoll=Math.max(state[p],FLOOR),pBase=Math.max(NAT2024[p],FLOOR);nationalDelta[p]=Math.log(pPoll/labPoll)-Math.log(pBase/labBase);}
+  const gamma=BAYES_GAMMA[c.region]||null;
+  const labShare=Math.max(c.shares.Lab||FLOOR,FLOOR);
+  const etaNew={};
+  for(const p of PARTIES){
+    const pShare=Math.max(c.shares[p]||FLOOR,FLOOR);
+    const eta2024=Math.log(pShare/labShare);
+    let regionalDev=0;
+    if(gamma&&BAYES_MU[p]!==undefined)regionalDev=(gamma[p]||0)-BAYES_MU[p];
+    let fbEffect=0;
+    if(BAYES_FB[c.id]!==undefined&&BAYES_BETA_FB[p]!==undefined)fbEffect=BAYES_BETA_FB[p]*BAYES_FB[c.id];
+    etaNew[p]=eta2024+nationalDelta[p]+regionalDev+fbEffect;
+  }
+  ns.SNP=c.country==='Scotland'?Math.max(0,(c.shares.SNP||0)*(SNP2024>0?state.SNP/SNP2024:1)):(c.shares.SNP||0);
+  ns.PC=c.country==='Wales'?Math.max(0,(c.shares.PC||0)*(PC2024>0?state.PC/PC2024:1)):(c.shares.PC||0);
+  for(const p of['DUP','SF','SDLP','UUP','APNI'])ns[p]=c.shares[p]||0;
+  if(c.shares.Ind)ns.Ind=c.shares.Ind;
+  const expEtas={};let sumExp=1.0;
+  for(const p of PARTIES){expEtas[p]=Math.exp(etaNew[p]);sumExp+=expEtas[p];}
+  const otherShare=(ns.SNP||0)+(ns.PC||0)+(ns.DUP||0)+(ns.SF||0)+(ns.SDLP||0)+(ns.UUP||0)+(ns.APNI||0)+(ns.Ind||0);
+  const labNew=Math.max((100.0-otherShare)/sumExp,0.1);
+  ns.Lab=labNew;
+  for(const p of PARTIES)ns[p]=labNew*expEtas[p];
+  const orig=Object.values(c.shares).reduce((a,b)=>a+b,0),cur=Object.values(ns).reduce((a,b)=>a+b,0);
+  if(orig>0&&cur>0){const sc=orig/cur;for(const p of Object.keys(ns))ns[p]=Math.max(0,ns[p]*sc);}
+  return ns;
+}
+
 // ── Tactical ──────────────────────────────────────────────────────────────────
 function applyTactical(ns,c){
   const tP=state.tProg/100,tR=state.tRight/100,tA=state.tAntiRef/100;
@@ -1482,7 +1528,8 @@ function winnerFrom(ns,c){
 
 // ── Project ───────────────────────────────────────────────────────────────────
 function project(){
-  const swing=document.getElementById('swing-model').value==='prop'?applyProp:applyUNS;
+  const smv=document.getElementById('swing-model').value;
+  const swing=smv==='bayes'?applyBayes:smv==='prop'?applyProp:applyUNS;
   projected=[];projNoTact=[];
   SEATS.forEach(c=>{
     const ns=swing(c),nst=applyTactical(ns,c);
@@ -1675,7 +1722,8 @@ function updateHeroStats(counts){
   const [largestParty,largestSeats]=ordered.find(([,n])=>n>0)||['',0];
   const changed=projected.filter(c=>c.changed).length;
   const tightest=projected.slice().sort((a,b)=>a.projMajPct-b.projMajPct)[0];
-  const model=document.getElementById('swing-model').value==='prop'?'Proportional swing':'Uniform national swing';
+  const smv2=document.getElementById('swing-model').value;
+  const model=smv2==='bayes'?'Bayesian hierarchical':smv2==='prop'?'Proportional swing':'Uniform national swing';
   const largestLabel=largestParty?`${PARTY_NAMES[largestParty]||largestParty} · ${largestSeats} seats`:'—';
   const changedLabel=`${changed} seat${changed!==1?'s':''}`;
   const marginalLabel=tightest?`${tightest.name} · ${tightest.projMajPct.toFixed(1)}%`:'—';
