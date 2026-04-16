@@ -168,15 +168,22 @@ print(f"  PC (Wales only): mean={pc_deltas[pc_mask>0].mean():.3f}, sd={pc_deltas
 print("\nFitting extended Bayesian hierarchical model (v2)...")
 
 with pm.Model() as hierarchical_model_v2:
-    # ── Hyperpriors (all 6 parties) ──
+    # ── Hyperpriors ──
     mu = pm.Normal('mu', mu=0, sigma=3, shape=n_parties_all)
-    tau = pm.HalfCauchy('tau', beta=1.5, shape=n_parties_all)
+    # τ estimated freely only for the 4 GB parties; SNP/PC each have only
+    # one region of data so their between-region variance is unidentified.
+    # We set τ_SNP = τ_PC = mean(τ_GB) to share information.
+    tau_gb = pm.HalfCauchy('tau_gb', beta=1.5, shape=n_parties_gb)
+    tau_shared = pm.math.mean(tau_gb)
+    tau = pm.math.concatenate([tau_gb,
+                               pm.math.stack([tau_shared, tau_shared])])
+    pm.Deterministic('tau', tau)
     sigma = pm.HalfCauchy('sigma', beta=1.5, shape=n_parties_all)
 
     # ── Region-level means (all 6 parties × all regions) ──
-    # SNP gammas will only be identified in Scotland region(s), and PC in Wales.
-    # The partial pooling via the shared hyperprior (μ, τ) still applies:
-    # non-observed region gammas will shrink toward μ, which is fine.
+    # SNP gammas only identified in Scotland, PC only in Wales.
+    # With τ_SNP/PC set to mean(τ_GB), their non-observed region gammas
+    # shrink toward μ with a reasonable, data-informed spread.
     gamma = pm.Normal('gamma', mu=mu, sigma=tau, shape=(n_regions, n_parties_all))
 
     # ── Foreign-born coefficient (all 6 parties) ──
@@ -216,7 +223,7 @@ with pm.Model() as hierarchical_model_v2:
                       idata_kwargs={"log_likelihood": True})
 
 print("\nSampling complete!")
-summary = az.summary(trace, var_names=['mu', 'tau', 'sigma', 'beta_fb'])
+summary = az.summary(trace, var_names=['mu', 'tau_gb', 'tau', 'sigma', 'beta_fb'])
 print(summary)
 
 # ── 7. Cross-validated calibration (Improvement #1) ─────────────────────────

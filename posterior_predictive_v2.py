@@ -123,7 +123,13 @@ import pymc as pm
 
 with pm.Model() as hierarchical_model_v2:
     mu = pm.Normal('mu', mu=0, sigma=3, shape=n_parties_all)
-    tau = pm.HalfCauchy('tau', beta=1.5, shape=n_parties_all)
+    # τ estimated freely only for 4 GB parties; SNP/PC share mean(τ_GB)
+    # because each has only one region of data (between-region variance unidentified)
+    tau_gb = pm.HalfCauchy('tau_gb', beta=1.5, shape=n_parties_gb)
+    tau_shared = pm.math.mean(tau_gb)
+    tau = pm.math.concatenate([tau_gb,
+                               pm.math.stack([tau_shared, tau_shared])])
+    pm.Deterministic('tau', tau)
     sigma = pm.HalfCauchy('sigma', beta=1.5, shape=n_parties_all)
     gamma = pm.Normal('gamma', mu=mu, sigma=tau, shape=(n_regions, n_parties_all))
     beta_fb = pm.Normal('beta_fb', mu=0, sigma=1, shape=n_parties_all)
