@@ -1,0 +1,105 @@
+UK Polling Smoothed Predictions Extraction Summary
+===================================================
+
+File: uk_polling_smoothed_predictions.csv
+Location: /sessions/hopeful-trusting-clarke/mnt/Election_modelling/deployment/data/
+Generated: 2026-04-03
+
+OVERVIEW
+--------
+This CSV contains quality-weighted smoothed polling predictions for UK national 
+elections using three different smoothing methods applied to raw polling data.
+
+DATA SPECIFICATIONS
+-------------------
+Rows: 2,224 (278 unique dates × 8 parties)
+Columns: 5
+  - Date: YYYY-MM-DD format
+  - Party: Lab, Con, Ref, LD, Grn, SNP, PC, Others
+  - LOWESS: Locally-weighted linear regression (tricube kernel, frac=0.25)
+  - Kalman: UnobservedComponents local level model (with daily interpolation)
+  - Rolling_21d: Quality-weighted rolling average (±10.5 day window)
+
+DATE RANGE
+----------
+From: 2024-07-04
+To: 2026-04-02
+Total span: ~640 days
+
+PARTIES INCLUDED
+----------------
+1. Lab       - Labour
+2. Con       - Conservative
+3. Ref       - Reform UK
+4. LD        - Liberal Democrats
+5. Grn       - Green Party
+6. SNP       - Scottish National Party
+7. PC        - Plaid Cymru
+8. Others    - Other parties
+
+SMOOTHING METHODS
+-----------------
+1. LOWESS (Weighted)
+   - Method: Locally-Weighted Linear Regression with tricube kernel
+   - Quality weighting: Applied (per Pollster_Ratings.csv scores)
+   - Bandwidth: 25% of data span
+   - Evaluation points: 300 grid points, interpolated back to data dates
+   
+2. Kalman Filter (Unweighted)
+   - Method: UnobservedComponents local level model
+   - State space: Extracts smoothed trend from daily interpolated series
+   - Daily resolution: Computed on daily grid, interpolated to poll dates
+   - Quality weighting: Not applied (uses interpolated series)
+
+3. Rolling 21-day Average (Weighted)
+   - Method: Quality-weighted mean within ±10.5 day windows
+   - Quality weighting: Applied (per Pollster_Ratings.csv scores)
+   - Minimum periods: 5 observations required for a value
+   - Window size: 21 days centered on each date
+   - Early dates: NaN for first ~10 days due to insufficient window
+
+QUALITY WEIGHTING
+-----------------
+Pollster ratings sourced from: Pollster_Ratings.csv
+Scoring range: 0-100 (A=~90+, B=~70-80, C=~60-70, D=~50-60)
+Default weight for unknown pollsters: 50.0
+Applied to: LOWESS and Rolling_21d methods
+Not applied to: Kalman filter (uses interpolated series only)
+
+SOURCE DATA
+-----------
+Input CSV: uk_polling_2024_2026_national_dates_for_chart.csv
+Raw polls: 409 rows (multiple polls per date for each party)
+Computation: Aggregated per date before smoothing
+
+MISSING DATA
+------------
+Rolling_21d NaN values: 70 occurrences
+  - Concentrated at early dates (before sufficient window population)
+  - Also some rare cases where min_periods (5 obs) not met
+LOWESS and Kalman: No NaN values (all dates covered)
+
+QUALITY NOTES
+-------------
+- Data is interpolated across continuous daily range
+- Vote shares normalized to percentages (0-100)
+- Rounding: 2 decimal places for all smoothed values
+- No adjustments made for missing parties on specific dates
+- Series have independent smoothing per party (no cross-party constraints)
+
+USAGE EXAMPLES
+--------------
+# Load the data
+import pandas as pd
+df = pd.read_csv('uk_polling_smoothed_predictions.csv')
+
+# Get Labour smoothed predictions
+lab = df[df['Party'] == 'Lab'].sort_values('Date')
+
+# Compare methods for a specific date
+snapshot = df[df['Date'] == '2026-04-02']
+
+# Time series for all parties
+for party in df['Party'].unique():
+    party_data = df[df['Party'] == party].sort_values('Date')
+    print(f"{party}: {party_data['LOWESS'].mean():.1f}% (LOWESS avg)")
